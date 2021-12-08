@@ -1,0 +1,13 @@
+/*
+/*/*
+
+!.gitignore
+!requirements.txt
+
+!/dqa_mdr_connector
+
+!*.py
+!*.md
+
+download_mdr.py
+upload_mdr.py
