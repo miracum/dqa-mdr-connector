@@ -5,6 +5,8 @@
 !requirements.txt
 
 !/dqa_mdr_connector
+!/doc
+!/doc/dqa_mdr_connector
 
 !*.py
 !*.md

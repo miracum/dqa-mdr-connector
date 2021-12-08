@@ -4,7 +4,7 @@ __author__ = "Lorenz A. Kapsner, Moritz Stengel"
 __copyright__ = "Universitätsklinikum Erlangen"
 
 # create docs from root directory:
-# pdoc3 --html --output-dir doc tirutils --force
+# pdoc3 --html --output-dir doc dqa_mdr_connector --force
 
 # create requirements from root directory:
 # pipreqs ./ --force
