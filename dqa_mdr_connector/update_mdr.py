@@ -143,11 +143,19 @@ class UpdateMDR(ApiConnector):
             # add definition template to basetemp
             de_basetemp["definitions"].append(de_definition_temp)
 
+            # add slot (if available) here:
+            # de_basetemp["slot"] = copy.deepcopy(
+            # self._de_slot_template)
+
+            # de_basetemp["slot"]["name"] = "dqa"
+            # de_basetemp["slot"]["value"] = your_fancy_slot_creation_function(self.database, _row["variable_name"])
+
             if _designation in mdr_de_designations.keys():
                 # update data element on API (PUT)
                 _urn = mdr_de_designations[_designation]
                 _valuedomainurn = urn_designation_mapping[_urn]["valueDomainUrn"]
                 de_basetemp["valueDomainUrn"] = _valuedomainurn
+
                 element_url = up.urljoin(
                     self.base_url,
                     posixpath.join(
@@ -161,7 +169,6 @@ class UpdateMDR(ApiConnector):
                     headers=self.header
                 )
 
-                print(response)
             else:
                 # create new data element on API (POST)
                 # fill valuetype

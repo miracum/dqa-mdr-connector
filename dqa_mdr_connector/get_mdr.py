@@ -27,8 +27,11 @@ class GetMDR(ApiConnector):
 
         # initialize pandas
         self.database = pd.DataFrame(
-            columns=["designation", "definition",
-                     "variable_type", "constraints"]
+            columns=['designation', 'definition', 'variable_name', 'key', 'dqa_assessment',
+                     'variable_type', 'source_variable_name', 'source_table_name',
+                     'source_system_name', 'source_system_type', 'constraints', 'filter',
+                     'data_map', 'plausibility_relation', 'restricting_date_var',
+                     'restricting_date_format']
         )
 
     def __call__(self):
@@ -130,6 +133,9 @@ class GetMDR(ApiConnector):
                 dict_to_pandas["variable_type"] = "enumerated"
                 dict_to_pandas["constraints"] = json.dumps(
                     {"value_set": response["permittedValues"]})
+
+            # elif response["slot"] != "":
+            #    dict_to_pandas = {**dict_to_pandas, your_fancy_function_to_split_slot(json.reads(response["slot"]))}
 
             self.database = self.database.append(
                 other=dict_to_pandas,
