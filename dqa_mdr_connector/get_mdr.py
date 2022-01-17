@@ -15,6 +15,8 @@ from datetime import datetime
 import logging
 
 from dqa_mdr_connector.api_connection import ApiConnector
+from dqa_mdr_connector.slot_split import slot_split
+
 # api doc: https://rest.demo.dataelementhub.de/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config
 # dicovery doc: https://www.keycloak.org/docs/4.8/authorization_services/#_service_authorization_api
 
@@ -134,10 +136,26 @@ class GetMDR(ApiConnector):
                 dict_to_pandas["constraints"] = json.dumps(
                     {"value_set": response["permittedValues"]})
 
-            # elif response["slot"] != "":
-            #    dict_to_pandas = {**dict_to_pandas, your_fancy_function_to_split_slot(json.reads(response["slot"]))}
+            mdr_temp = pd.DataFrame(data=dict_to_pandas)
+
+            if response["slot"] != "":
+                # until now, dict_to_pandas is one row,
+                # however, when expanding slot, we can get several rows (for different
+                # system types and system names) for one data element.
+                # Hence, we need to transfer dict_to_pandas to a data frame and join data frame
+                # from expanded slot
+
+                mdr_temp = mdr_temp.join(
+                    right=slot_split(
+                        json_slot=json.reads(response["slot"]),
+                        designation=dict_to_pandas["designation"],
+                        definition=dict_to_pandas["definition"]
+                    ),
+                    on=["designation", "definition"],
+                    how="outer"
+                )
 
             self.database = self.database.append(
-                other=dict_to_pandas,
+                other=mdr_temp,
                 ignore_index=True
             )

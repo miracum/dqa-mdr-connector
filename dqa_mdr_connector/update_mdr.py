@@ -3,6 +3,7 @@
 __author__ = "Lorenz A. Kapsner, Moritz Stengel"
 __copyright__ = "Universitätsklinikum Erlangen"
 
+from operator import length_hint
 import os
 import requests
 import urllib.parse as up
@@ -15,13 +16,22 @@ import logging
 import copy
 
 from dqa_mdr_connector.api_connection import ApiConnector
+from dqa_mdr_connector.slot_create import slot_create
+
 # api doc: https://rest.demo.dataelementhub.de/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config
 # dicovery doc: https://www.keycloak.org/docs/4.8/authorization_services/#_service_authorization_api
 
 
 class UpdateMDR(ApiConnector):
 
-    def __init__(self, csv_file: str, separator: str = ",", **kwargs):
+    def __init__(
+            self,
+            csv_file: str,
+            separator: str = ",",
+            main_system_name: str = "i2b2",
+            main_system_type: str = "postgres",
+            **kwargs
+    ):
 
         # if creating new namespace, arg "namespace_definition" is required
         if "namespace_definition" in kwargs.keys():
@@ -37,6 +47,18 @@ class UpdateMDR(ApiConnector):
 
         # read database
         self.read_csv_mdr(separator=separator)
+
+        # MDR = self.database
+        # now create main_system_mdr with unique dataelements only (no duplicate designation)
+        # as defined by arg 'main_system_name' and 'main_system_type'
+        self.main_system_mdr = self.database[
+            (self.database["source_system_name"] == main_system_name) &
+            (self.database["source_system_type"] == main_system_type)]
+
+        if len(self.main_system_mdr) != \
+                len(self.main_system_mdr[["designation", "key", "variable_name"]]):
+            raise Exception(
+                "main_system_mdr contains duplicate entries of data elements.")
 
     def __call__(self):
 
@@ -112,7 +134,7 @@ class UpdateMDR(ApiConnector):
             for _urn, _de_designations in urn_designation_mapping.items():
                 while True:
                     for _de_designation in _de_designations["designation"]:
-                        if _de_designation in self.database["designation"].values:
+                        if _de_designation in self.main_system_mdr["designation"].values:
                             mdr_de_designations[_de_designation] = _urn
                             # if correct designation found within set of designations,
                             # skip for-loop
@@ -120,7 +142,7 @@ class UpdateMDR(ApiConnector):
                     break
 
         # update existing dataelements
-        for _i, _row in self.database.iterrows():
+        for _i, _row in self.main_system_mdr.iterrows():
             _designation = _row["designation"]
             _definition = _row["definition"]
 
@@ -143,12 +165,17 @@ class UpdateMDR(ApiConnector):
             # add definition template to basetemp
             de_basetemp["definitions"].append(de_definition_temp)
 
-            # add slot (if available) here:
-            # de_basetemp["slot"] = copy.deepcopy(
-            # self._de_slot_template)
+            # add slot
+            de_basetemp["slot"] = copy.deepcopy(
+                self._de_slot_template)
 
-            # de_basetemp["slot"]["name"] = "dqa"
-            # de_basetemp["slot"]["value"] = your_fancy_slot_creation_function(self.database, _row["variable_name"])
+            de_basetemp["slot"]["name"] = "dqa"
+            de_basetemp["slot"]["value"] = slot_create(
+                mdr=self.database,
+                mdr_row=_row
+            )
+
+            print(de_basetemp)
 
             if _designation in mdr_de_designations.keys():
                 # update data element on API (PUT)
