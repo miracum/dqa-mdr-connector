@@ -78,6 +78,34 @@ class GetMDR(ApiConnector):
                 "definition": response["definitions"][0]["definition"]
             }
 
+            mdr_temp = pd.DataFrame(
+                data=dict_to_pandas,
+                dtype=str,
+                index=[0]
+            )
+
+            if len(response["slots"]) > 0:
+                # until now, dict_to_pandas is one row,
+                # however, when expanding slot, we can get several rows (for different
+                # system types and system names) for one data element.
+                # Hence, we need to transfer dict_to_pandas to a data frame and join data frame
+                # from expanded slot
+
+                mdr_temp = mdr_temp.join(
+                    right=slot_split(
+                        json_slot=json.dumps(response["slots"][0]),
+                        designation=dict_to_pandas["designation"],
+                        definition=dict_to_pandas["definition"]
+                    ),
+                    on=["designation", "definition"],
+                    how="outer"
+                )
+
+            self.database = self.database.append(
+                other=mdr_temp,
+                ignore_index=True
+            )
+
             # dataelement valuedomain url
             ns_dataelement_valuedom_url = posixpath.join(
                 ns_dataelement_url, "valuedomain")
@@ -133,29 +161,15 @@ class GetMDR(ApiConnector):
 
             elif response["type"] == "ENUMERATED":
                 dict_to_pandas["variable_type"] = "enumerated"
+
+                permitted_val_response = response["permittedValues"]
+
+                # default empty list
+                value_list = []
+
+                # fill value list
+                for val in permitted_val_response:
+                    value_list = value_list + [val["value"]]
+
                 dict_to_pandas["constraints"] = json.dumps(
-                    {"value_set": response["permittedValues"]})
-
-            mdr_temp = pd.DataFrame(data=dict_to_pandas)
-
-            if response["slot"] != "":
-                # until now, dict_to_pandas is one row,
-                # however, when expanding slot, we can get several rows (for different
-                # system types and system names) for one data element.
-                # Hence, we need to transfer dict_to_pandas to a data frame and join data frame
-                # from expanded slot
-
-                mdr_temp = mdr_temp.join(
-                    right=slot_split(
-                        json_slot=json.reads(response["slot"]),
-                        designation=dict_to_pandas["designation"],
-                        definition=dict_to_pandas["definition"]
-                    ),
-                    on=["designation", "definition"],
-                    how="outer"
-                )
-
-            self.database = self.database.append(
-                other=mdr_temp,
-                ignore_index=True
-            )
+                    {"value_set": ", ".join(value_list)})

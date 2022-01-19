@@ -165,15 +165,19 @@ class UpdateMDR(ApiConnector):
             # add definition template to basetemp
             de_basetemp["definitions"].append(de_definition_temp)
 
-            # add slot
-            de_basetemp["slot"] = copy.deepcopy(
-                self._de_slot_template)
-
-            de_basetemp["slot"]["name"] = "dqa"
-            de_basetemp["slot"]["value"] = slot_create(
+            # create and modify temporary slot list element
+            # (which is actually our dict from the slot_template)
+            create_slot_tmp = copy.deepcopy(
+                self._de_slot_template
+            )
+            create_slot_tmp["name"] = "dqa"
+            create_slot_tmp["value"] = slot_create(
                 mdr=self.database,
                 mdr_row=_row
             )
+
+            # append slot_temp to slots-list
+            de_basetemp["slots"] = de_basetemp["slots"] + [create_slot_tmp]
 
             print(de_basetemp)
 
