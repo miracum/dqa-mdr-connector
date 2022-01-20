@@ -8,10 +8,6 @@ import json
 import pandas as pd
 import copy
 
-__slot = {
-    "key": "dqa",
-    "value": ""
-}
 
 __slot_base_value = {
     "variable_name": "",
@@ -29,7 +25,7 @@ __slot_system_value = {
 }
 
 
-def slot_create(mdr: pd.DataFrame, mdr_row: pd.Series):
+def slot_create_dqa_value(mdr: pd.DataFrame, mdr_row: pd.Series):
 
     # begin from here to create "callable" funciton for dqa-mdr-connector
     # Every System designation within database (eg. Person.Demographie.AdministrativesGeschlecht)
@@ -92,9 +88,4 @@ def slot_create(mdr: pd.DataFrame, mdr_row: pd.Series):
             manipulate_slot_base_value["available_systems"][system_type][
                 system_name] = manipulate_slot_system_value
 
-    # create final slot
-    final_slot = copy.deepcopy(__slot)
-    # add before created value, which contains all representations of different system types and databases
-    final_slot["value"] = manipulate_slot_base_value
-
-    return(json.dumps(final_slot))
+    return(json.dumps(manipulate_slot_base_value))

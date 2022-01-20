@@ -91,15 +91,24 @@ class GetMDR(ApiConnector):
                 # Hence, we need to transfer dict_to_pandas to a data frame and join data frame
                 # from expanded slot
 
-                mdr_temp = mdr_temp.join(
-                    right=slot_split(
-                        json_slot=json.dumps(response["slots"][0]),
+                for _element in response["slots"]:
+                    if _element["name"] == "dqa":
+                        dqa_slot = _element["value"]
+                        break
+
+                try:
+                    pandas_from_slot = slot_split(
+                        json_slot=json.loads(dqa_slot),
                         designation=dict_to_pandas["designation"],
                         definition=dict_to_pandas["definition"]
-                    ),
-                    on=["designation", "definition"],
-                    how="outer"
-                )
+                    )
+                    mdr_temp = mdr_temp.astype(str).join(
+                        other=pandas_from_slot.astype(str),
+                        on=["designation", "definition"],
+                        how="outer"
+                    )
+                except Exception as e:
+                    logging.error(e)
 
             self.database = self.database.append(
                 other=mdr_temp,

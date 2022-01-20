@@ -16,7 +16,7 @@ import logging
 import copy
 
 from dqa_mdr_connector.api_connection import ApiConnector
-from dqa_mdr_connector.slot_create import slot_create
+from dqa_mdr_connector.slot_create import slot_create_dqa_value
 
 # api doc: https://rest.demo.dataelementhub.de/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config
 # dicovery doc: https://www.keycloak.org/docs/4.8/authorization_services/#_service_authorization_api
@@ -171,7 +171,7 @@ class UpdateMDR(ApiConnector):
                 self._de_slot_template
             )
             create_slot_tmp["name"] = "dqa"
-            create_slot_tmp["value"] = slot_create(
+            create_slot_tmp["value"] = slot_create_dqa_value(
                 mdr=self.database,
                 mdr_row=_row
             )
