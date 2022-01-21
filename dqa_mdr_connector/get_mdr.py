@@ -102,8 +102,8 @@ class GetMDR(ApiConnector):
                         designation=dict_to_pandas["designation"],
                         definition=dict_to_pandas["definition"]
                     )
-                    mdr_temp = mdr_temp.astype(str).join(
-                        other=pandas_from_slot.astype(str),
+                    mdr_temp = mdr_temp.astype(str).merge(
+                        pandas_from_slot.astype(str),
                         on=["designation", "definition"],
                         how="outer"
                     )
