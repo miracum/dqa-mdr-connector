@@ -17,7 +17,14 @@ import posixpath
 
 class ApiConnector():
 
-    def __init__(self, api_url: str, api_auth_url: str, namespace_designation: str):
+    def __init__(
+        self,
+        api_url: str,
+        api_auth_url: str,
+        namespace_designation: str,
+        client_id: str = "mdr",
+        scope: str = "mdr"
+    ):
 
         # set base url
         self.base_url = api_url
@@ -25,7 +32,11 @@ class ApiConnector():
         self.namespace_designation = namespace_designation
 
         # connect to api
-        self.api_connection = self.get_con(auth_url=api_auth_url)
+        self.api_connection = self.get_con(
+            auth_url=api_auth_url,
+            client_id=client_id,
+            scope=scope
+        )
 
         # get tokens from json
         json_dump = json.loads(self.api_connection.text)
@@ -45,7 +56,7 @@ class ApiConnector():
 
         return username, password
 
-    def get_con(self, auth_url: str):
+    def get_con(self, auth_url: str, client_id: str, scope: str):
 
         # get discovery document:
         # curl -X GET https://auth.dev.osse-register.de/auth/realms/dehub-demo/.well-known/uma2-configuration
@@ -54,8 +65,8 @@ class ApiConnector():
 
         data = {
             "grant_type": "password",
-            "client_id": "dehub",
-            "scope": "dehub",
+            "client_id": client_id,
+            "scope": scope,
             "username": uname,
             "password": pw
         }
