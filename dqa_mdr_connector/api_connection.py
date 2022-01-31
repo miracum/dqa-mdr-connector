@@ -23,6 +23,7 @@ class ApiConnector():
         api_auth_url: str,
         namespace_designation: str,
         client_id: str = "mdr",
+        client_secret: str = "secret",
         scope: str = "mdr"
     ):
 
@@ -35,6 +36,7 @@ class ApiConnector():
         self.api_connection = self.get_con(
             auth_url=api_auth_url,
             client_id=client_id,
+            client_secret=client_secret,
             scope=scope
         )
 
@@ -56,7 +58,7 @@ class ApiConnector():
 
         return username, password
 
-    def get_con(self, auth_url: str, client_id: str, scope: str):
+    def get_con(self, auth_url: str, client_id: str, client_secret: str, scope: str):
 
         # get discovery document:
         # curl -X GET https://auth.dev.osse-register.de/auth/realms/dehub-demo/.well-known/uma2-configuration
@@ -66,6 +68,7 @@ class ApiConnector():
         data = {
             "grant_type": "password",
             "client_id": client_id,
+            "client_secret": client_secret,
             "scope": scope,
             "username": uname,
             "password": pw
