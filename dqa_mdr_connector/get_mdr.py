@@ -56,7 +56,7 @@ class GetMDR(ApiConnector):
 
         # if namespace exists, self.ns_id will be set
         self.check_if_namespace_exists()
-
+        #self.ns_id = "11"
         if self.ns_id is None:
             msg = "No or multiple namespaces found at '{}' for namespace_designation '{}'".format(
                 self.base_url,

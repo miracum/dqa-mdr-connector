@@ -22,9 +22,9 @@ class ApiConnector():
         api_url: str,
         api_auth_url: str,
         namespace_designation: str,
-        client_id: str = "mdr",
-        client_secret: str = "secret",
-        scope: str = "mdr"
+        client_id: str = "dehub-dev",
+        client_secret: str = "",
+        scope: str = "openid"
     ):
 
         # set base url
@@ -42,7 +42,7 @@ class ApiConnector():
 
         # get tokens from json
         json_dump = json.loads(self.api_connection.text)
-
+        print(json_dump)
         self.access_token = json_dump["access_token"]
         self.refresh_token = json_dump["refresh_token"]
 
@@ -104,7 +104,7 @@ class ApiConnector():
 
         # get namespace ID
         # solving cardinality
-        for _element in response["ADMIN"]:
+        for _element in response["READ"]:
             # print(_element)
 
             for _multi_definitions in _element["definitions"]:
