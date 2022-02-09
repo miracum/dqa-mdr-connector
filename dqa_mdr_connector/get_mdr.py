@@ -23,9 +23,17 @@ from dqa_mdr_connector.slot_split import slot_split
 
 class GetMDR(ApiConnector):
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        output_folder="./",
+        output_filename="dehub_mdr_clean.csv",
+        **kwargs
+        ):
 
         super().__init__(**kwargs)
+
+        self.output_folder=os.path.abspath(output_folder)
+        self.output_filename=os.path.abspath(output_filename)
 
         # initialize pandas
         self.database = pd.DataFrame(
@@ -42,10 +50,11 @@ class GetMDR(ApiConnector):
         # finally: save pandas
         self.database.to_csv(
             path_or_buf=os.path.join(
-                os.curdir,
-                self.namespace_designation + "-" +
+                self.output_folder,
+                self.output_filename + "-" +
                 datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv"
             ),
+            sep="\t",
             index=False
         )
 
@@ -56,7 +65,6 @@ class GetMDR(ApiConnector):
 
         # if namespace exists, self.ns_id will be set
         self.check_if_namespace_exists()
-        #self.ns_id = "11"
         if self.ns_id is None:
             msg = "No or multiple namespaces found at '{}' for namespace_designation '{}'".format(
                 self.base_url,

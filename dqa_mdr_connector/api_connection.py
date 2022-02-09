@@ -42,7 +42,7 @@ class ApiConnector():
 
         # get tokens from json
         json_dump = json.loads(self.api_connection.text)
-        print(json_dump)
+        #print(json_dump)
         self.access_token = json_dump["access_token"]
         self.refresh_token = json_dump["refresh_token"]
 
