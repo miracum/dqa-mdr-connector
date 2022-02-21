@@ -20,8 +20,9 @@ class ApiConnector():
     def __init__(
         self,
         api_url: str,
-        api_auth_url: str,
         namespace_designation: str,
+        bypass_auth: bool = False,
+        api_auth_url: str = None,
         client_id: str = "dehub-dev",
         client_secret: str = "",
         scope: str = "openid"
@@ -32,21 +33,24 @@ class ApiConnector():
         # set namespace designation
         self.namespace_designation = namespace_designation
 
-        # connect to api
-        self.api_connection = self.get_con(
-            auth_url=api_auth_url,
-            client_id=client_id,
-            client_secret=client_secret,
-            scope=scope
-        )
+        if bypass_auth:
+            self.header = None
+        else:
+            # connect to api
+            self.api_connection = self.get_con(
+                auth_url=api_auth_url,
+                client_id=client_id,
+                client_secret=client_secret,
+                scope=scope
+            )
 
-        # get tokens from json
-        json_dump = json.loads(self.api_connection.text)
-        #print(json_dump)
-        self.access_token = json_dump["access_token"]
-        self.refresh_token = json_dump["refresh_token"]
+            # get tokens from json
+            json_dump = json.loads(self.api_connection.text)
+            #print(json_dump)
+            self.access_token = json_dump["access_token"]
+            self.refresh_token = json_dump["refresh_token"]
 
-        self.header = {"Authorization": "Bearer " + self.access_token}
+            self.header = {"Authorization": "Bearer " + self.access_token}
 
     @staticmethod
     def get_credentials(base_url):

@@ -118,9 +118,11 @@ class GetMDR(ApiConnector):
                 except Exception as e:
                     logging.error(e)
 
-            self.database = self.database.append(
-                other=mdr_temp,
-                ignore_index=True
+            self.database = pd.concat(
+                [self.database, mdr_temp],
+                ignore_index=True,
+                axis=0,
+                join="outer"
             )
 
             # dataelement valuedomain url
