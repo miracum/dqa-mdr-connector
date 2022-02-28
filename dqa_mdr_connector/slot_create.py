@@ -17,6 +17,7 @@ __slot_base_value = {
 
 __slot_system_value = {
     "dqa_assessment": 1,
+    "data_map": "",
     "filter": "",
     "source_variable_name": "",
     "source_table_name": "",
@@ -85,6 +86,7 @@ def slot_create_dqa_value(mdr: pd.DataFrame, mdr_row: pd.Series):
             manipulate_slot_system_value["source_table_name"] = data_for_system_name.iloc[0]["source_table_name"]
             manipulate_slot_system_value["constraints"] = data_for_system_name.iloc[0]["constraints"]
             manipulate_slot_system_value["plausibility_relation"] = data_for_system_name.iloc[0]["plausibility_relation"]
+            manipulate_slot_system_value["data_map"] = data_for_system_name.iloc[0]["data_map"]
 
             # append filled template to list of systems for that system type
             manipulate_slot_base_value["available_systems"][system_type][
