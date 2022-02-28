@@ -105,7 +105,7 @@ class ApiConnector():
 
         # get namespace ID
         # solving cardinality
-        for _element in response["READ"]:
+        for _element in response["WRITE"]:
             # print(_element)
 
             for _multi_definitions in _element["definitions"]:
