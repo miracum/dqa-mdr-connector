@@ -24,13 +24,19 @@ class ApiConnector():
         bypass_auth: bool = False,
         api_auth_url: str = None,
         client_id: str = "dehub-dev",
-        scope: str = "openid"
+        scope: str = "openid",
+        download: bool = True
     ):
 
         # set base url
         self.base_url = api_url
         # set namespace designation
         self.namespace_designation = namespace_designation
+
+        if download:
+            self.download_role = "READ"
+        else:
+            self.download_role = "WRITE"
 
         if bypass_auth:
             self.header = None
@@ -105,7 +111,7 @@ class ApiConnector():
 
         # get namespace ID
         # solving cardinality
-        for _element in response["WRITE"]:
+        for _element in response[self.download_role]:
             # print(_element)
 
             for _multi_definitions in _element["definitions"]:

@@ -28,12 +28,14 @@ class GetMDR(ApiConnector):
         output_folder="./",
         output_filename="dehub_mdr_clean.csv",
         de_fhir_paths: list = None,
+        return_csv: bool = True,
         **kwargs
         ):
 
         super().__init__(**kwargs)
 
         self.de_fhir_paths = de_fhir_paths
+        self.return_csv = return_csv
 
         self.output_folder=os.path.abspath(output_folder)
         self.output_filename=os.path.abspath(output_filename)
@@ -49,17 +51,19 @@ class GetMDR(ApiConnector):
 
     def __call__(self):
         self.query_info_from_api()
-
-        # finally: save pandas
-        self.database.to_csv(
-            path_or_buf=os.path.join(
-                self.output_folder,
-                self.output_filename + "-" +
-                datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv"
-            ),
-            sep="\t",
-            index=False
-        )
+        
+        if self.return_csv:
+            self.database.to_csv(
+                path_or_buf=os.path.join(
+                    self.output_folder,
+                    self.output_filename + "-" +
+                    datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv"
+                ),
+                sep="\t",
+                index=False
+            )
+        else:
+            return self.database
 
     def query_info_from_api(self):
         ######################
@@ -110,13 +114,13 @@ class GetMDR(ApiConnector):
                 ns_dataelement_url, "valuedomain")
 
             # get data element metadata
-            response = self.query_api(
+            response_valuedom = self.query_api(
                 url=ns_dataelement_valuedom_url,
                 header=self.header
             )
 
-            if response["type"] == "STRING":
-                dict_to_pandas["variable_type"] = response["type"].lower()
+            if response_valuedom["type"] == "STRING":
+                dict_to_pandas["variable_type"] = response_valuedom["type"].lower()
 
                 # dict_to_pandas["constraints"] = json.dumps(
                 #     {"regex": response["text"]["regEx"]
@@ -126,8 +130,8 @@ class GetMDR(ApiConnector):
                 #      }
                 # )
 
-            elif response["type"] == "NUMERIC":
-                dict_to_pandas["variable_type"] = response["numeric"]["type"].lower()
+            elif response_valuedom["type"] == "NUMERIC":
+                dict_to_pandas["variable_type"] = response_valuedom["numeric"]["type"].lower()
 
                 # dict_to_pandas["constraints"] = json.dumps(
                 #     {"range": {"min": response["numeric"]["minimum"],
@@ -137,7 +141,7 @@ class GetMDR(ApiConnector):
                 #      }
                 # )
 
-            elif "DATE" in response["type"]:
+            elif "DATE" in response_valuedom["type"]:
                 dict_to_pandas["variable_type"] = "datetime"
 
                 # dict_to_pandas["constraints"] = json.dumps(
@@ -146,11 +150,11 @@ class GetMDR(ApiConnector):
                 #               "hourFormat": response["datetime"]["hourFormat"]}}
                 # )
 
-            elif response["type"] == "BOOLEAN":
-                dict_to_pandas["variable_type"] = response["type"].lower()
+            elif response_valuedom["type"] == "BOOLEAN":
+                dict_to_pandas["variable_type"] = response_valuedom["type"].lower()
 
-            elif response["type"] == "ENUMERATED":
-                dict_to_pandas["variable_type"] = response["type"].lower()
+            elif response_valuedom["type"] == "ENUMERATED":
+                dict_to_pandas["variable_type"] = response_valuedom["type"].lower()
 
                 # permitted_val_response = response["permittedValues"]
 

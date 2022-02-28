@@ -11,8 +11,8 @@ def slot_split(json_slot: dict, designation: str, definition: str):
     base_row = {}
     base_row["designation"] = designation
     base_row["definition"] = definition
-    base_row["variable_name"] = json_slot["variable_name"]
-    base_row["key"] = json_slot["key"]
+    #base_row["variable_name"] = json_slot["variable_name"]
+    #base_row["key"] = json_slot["key"]
 
     manipulate_mdr = pd.DataFrame()
 
@@ -30,14 +30,17 @@ def slot_split(json_slot: dict, designation: str, definition: str):
             system_name_row["source_variable_name"] = system_name_data["source_variable_name"]
             system_name_row["source_table_name"] = system_name_data["source_table_name"]
             system_name_row["constraints"] = system_name_data["constraints"]
+            system_name_row["plausibility_relation"] = system_name_data["plausibility_relation"]
 
             # filter, source_variable_name, source_table_name
 
             system_name_dict = {**base_row, **system_name_row}
 
-            manipulate_mdr = manipulate_mdr.append(
-                other=system_name_dict,
-                ignore_index=True
+            manipulate_mdr = pd.concat(
+                [manipulate_mdr, pd.DataFrame(system_name_dict, index=[0])],
+                ignore_index=True,
+                axis=0,
+                join="outer"
             )
 
     return manipulate_mdr
