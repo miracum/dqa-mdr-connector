@@ -27,10 +27,13 @@ class GetMDR(ApiConnector):
         self,
         output_folder="./",
         output_filename="dehub_mdr_clean.csv",
+        de_fhir_path: list = None,
         **kwargs
         ):
 
         super().__init__(**kwargs)
+
+        self.de_fhir_path = de_fhir_path
 
         self.output_folder=os.path.abspath(output_folder)
         self.output_filename=os.path.abspath(output_filename)
@@ -65,6 +68,7 @@ class GetMDR(ApiConnector):
 
         # if namespace exists, self.ns_id will be set
         self.check_if_namespace_exists()
+
         if self.ns_id is None:
             msg = "No or multiple namespaces found at '{}' for namespace_designation '{}'".format(
                 self.base_url,
@@ -80,11 +84,85 @@ class GetMDR(ApiConnector):
             # get data element metadata
             response, ns_dataelement_url = self.get_element_by_urn(
                 urn=_dataelement_urn)
+            
+            if not self.de_fhir_path is None:
+                fhir_path = [s for s in response["slots"] if s["name"] == "fhir-path"]
+                if len(fhir_path) == 1:
+                    if not fhir_path[0]["value"] in self.de_fhir_path:
+                        # continue loop, if this dataelement is not wanted
+                        continue
+                else:
+                    continue
 
             dict_to_pandas = {
                 "designation": response["definitions"][0]["designation"],
                 "definition": response["definitions"][0]["definition"]
             }
+
+            # if fhir path not none and code arrived here (i.e. the de 
+            # is in self.de_fhir_path) also add the fhir-path as key
+            if not self.de_fhir_path is None and len(fhir_path) == 1:
+                dict_to_pandas["key"] = fhir_path[0]["value"]
+                dict_to_pandas["variable_name"] = fhir_path[0]["value"]
+
+            # dataelement valuedomain url
+            ns_dataelement_valuedom_url = posixpath.join(
+                ns_dataelement_url, "valuedomain")
+
+            # get data element metadata
+            response = self.query_api(
+                url=ns_dataelement_valuedom_url,
+                header=self.header
+            )
+
+            if response["type"] == "STRING":
+                dict_to_pandas["variable_type"] = response["type"].lower()
+
+                # dict_to_pandas["constraints"] = json.dumps(
+                #     {"regex": response["text"]["regEx"]
+                #      #  "useRegex": response["text"]["useRegEx"],
+                #      #  "useMaximumLength": response["text"]["useMaximumLength"],
+                #      #  "maximumLength": response["text"]["maximumLength"]
+                #      }
+                # )
+
+            elif response["type"] == "NUMERIC":
+                dict_to_pandas["variable_type"] = response["numeric"]["type"].lower()
+
+                # dict_to_pandas["constraints"] = json.dumps(
+                #     {"range": {"min": response["numeric"]["minimum"],
+                #                "max": response["numeric"]["maximum"],
+                #                "unit": response["numeric"]["unitOfMeasure"],
+                #                }
+                #      }
+                # )
+
+            elif "DATE" in response["type"]:
+                dict_to_pandas["variable_type"] = "datetime"
+
+                # dict_to_pandas["constraints"] = json.dumps(
+                #     {"date": {"date": response["datetime"]["date"],
+                #               "time": response["datetime"]["time"],
+                #               "hourFormat": response["datetime"]["hourFormat"]}}
+                # )
+
+            elif response["type"] == "BOOLEAN":
+                dict_to_pandas["variable_type"] = response["type"].lower()
+
+            elif response["type"] == "ENUMERATED":
+                dict_to_pandas["variable_type"] = response["type"].lower()
+
+                # permitted_val_response = response["permittedValues"]
+
+                # # default empty list
+                # value_list = []
+
+                # # fill value list
+                # for val in permitted_val_response:
+                #     value_list = value_list + [val["value"]]
+
+                # dict_to_pandas["constraints"] = json.dumps(
+                #     {"value_set": ", ".join(value_list)})
 
             mdr_temp = pd.DataFrame(
                 data=dict_to_pandas,
@@ -125,70 +203,4 @@ class GetMDR(ApiConnector):
                 join="outer"
             )
 
-            # dataelement valuedomain url
-            ns_dataelement_valuedom_url = posixpath.join(
-                ns_dataelement_url, "valuedomain")
-
-            # get data element metadata
-            response = self.query_api(
-                url=ns_dataelement_valuedom_url,
-                header=self.header
-            )
-
-            if response["type"] == "STRING":
-                dict_to_pandas["variable_type"] = "string"
-
-                dict_to_pandas["constraints"] = json.dumps(
-                    {"regex": response["text"]["regEx"]
-                     #  "useRegex": response["text"]["useRegEx"],
-                     #  "useMaximumLength": response["text"]["useMaximumLength"],
-                     #  "maximumLength": response["text"]["maximumLength"]
-                     }
-                )
-
-            elif response["type"] == "NUMERIC":
-                dict_to_pandas["variable_type"] = response["numeric"]["type"].lower()
-
-                dict_to_pandas["constraints"] = json.dumps(
-                    {"range": {"min": response["numeric"]["minimum"],
-                               "max": response["numeric"]["maximum"],
-                               "unit": response["numeric"]["unitOfMeasure"],
-                               }
-                     }
-                )
-
-            elif response["type"] == "DATE":
-                dict_to_pandas["variable_type"] = "date"
-
-                dict_to_pandas["constraints"] = json.dumps(
-                    {"date": {"date": response["datetime"]["date"],
-                              "time": response["datetime"]["time"],
-                              "hourFormat": response["datetime"]["hourFormat"]}}
-                )
-
-            elif response["type"] == "DATETIME":
-                dict_to_pandas["variable_type"] = "datetime"
-
-                # dict_to_pandas["constraints"] = json.dumps(
-                #     {"date": {"date": response["datetime"]["date"],
-                #               "time": response["datetime"]["time"],
-                #               "hourformat": response["datetime"]["hourFormat"]}}
-                # )
-
-            elif response["type"] == "BOOLEAN":
-                dict_to_pandas["variable_type"] = "boolean"
-
-            elif response["type"] == "ENUMERATED":
-                dict_to_pandas["variable_type"] = "enumerated"
-
-                permitted_val_response = response["permittedValues"]
-
-                # default empty list
-                value_list = []
-
-                # fill value list
-                for val in permitted_val_response:
-                    value_list = value_list + [val["value"]]
-
-                dict_to_pandas["constraints"] = json.dumps(
-                    {"value_set": ", ".join(value_list)})
+            

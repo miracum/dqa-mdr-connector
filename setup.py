@@ -25,9 +25,11 @@ install_reqs = parse_requirements(req_file)
 
 setup(
     name='dqa_mdr_connector',
-    version='0.0.1',
+    version='0.0.2',
     author="Lorenz A. Kapsner, Moritz Stengel",
     author_email="lorenz.kapsner@uk-erlangen.de, moritz.stengel@extern.uk-erlangen.de",
+    license="GPLv3",
+    copyright="Universitätsklinikum Erlangen",
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=install_reqs,
     dependency_links=[],
