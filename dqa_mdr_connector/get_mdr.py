@@ -27,13 +27,13 @@ class GetMDR(ApiConnector):
         self,
         output_folder="./",
         output_filename="dehub_mdr_clean.csv",
-        de_fhir_path: list = None,
+        de_fhir_paths: list = None,
         **kwargs
         ):
 
         super().__init__(**kwargs)
 
-        self.de_fhir_path = de_fhir_path
+        self.de_fhir_paths = de_fhir_paths
 
         self.output_folder=os.path.abspath(output_folder)
         self.output_filename=os.path.abspath(output_filename)
@@ -85,10 +85,10 @@ class GetMDR(ApiConnector):
             response, ns_dataelement_url = self.get_element_by_urn(
                 urn=_dataelement_urn)
             
-            if not self.de_fhir_path is None:
+            if not self.de_fhir_paths is None:
                 fhir_path = [s for s in response["slots"] if s["name"] == "fhir-path"]
                 if len(fhir_path) == 1:
-                    if not fhir_path[0]["value"] in self.de_fhir_path:
+                    if not fhir_path[0]["value"] in self.de_fhir_paths:
                         # continue loop, if this dataelement is not wanted
                         continue
                 else:
@@ -101,7 +101,7 @@ class GetMDR(ApiConnector):
 
             # if fhir path not none and code arrived here (i.e. the de 
             # is in self.de_fhir_path) also add the fhir-path as key
-            if not self.de_fhir_path is None and len(fhir_path) == 1:
+            if not self.de_fhir_paths is None and len(fhir_path) == 1:
                 dict_to_pandas["key"] = fhir_path[0]["value"]
                 dict_to_pandas["variable_name"] = fhir_path[0]["value"]
 

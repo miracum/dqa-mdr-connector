@@ -30,6 +30,7 @@ class UpdateMDR(ApiConnector):
             separator: str = ",",
             main_system_name: str = "i2b2",
             main_system_type: str = "postgres",
+            de_fhir_paths: list = None,
             **kwargs
     ):
 
@@ -39,6 +40,8 @@ class UpdateMDR(ApiConnector):
 
         # initialize apiconnector
         super().__init__(**kwargs)
+
+        self.de_fhir_paths = de_fhir_paths
 
         self.csv_file_name = csv_file
 
@@ -108,7 +111,7 @@ class UpdateMDR(ApiConnector):
             self.check_if_namespace_exists()
 
         else:
-            logging.info("Namespace '' already exists.\n".format(
+            logging.info("Namespace '{}' already exists.\n".format(
                 self.namespace_designation))
             namespace_dataelement_urns = self.get_namespace_urns(
                 ns_id=self.ns_id)
@@ -118,15 +121,27 @@ class UpdateMDR(ApiConnector):
             # get designation for each urn
             for _dataelement_urn in namespace_dataelement_urns:
                 # get data element from mdr
-                response = self.get_element_by_urn(urn=_dataelement_urn)
+                response, ns_dataelement_url = self.get_element_by_urn(
+                    urn=_dataelement_urn
+                )
+
+                # check for fhir path
+                fhir_path = [s for s in response["slots"] if s["name"] == "fhir-path"]
+                if len(fhir_path) == 1:
+                    if not fhir_path[0]["value"] in self.de_fhir_paths:
+                        # continue loop, if this dataelement is not wanted
+                        continue
+                else:
+                    continue
 
                 multi_designation_list = []
-                for _element in response[0]["definitions"]:
+
+                for _element in response["definitions"]:
                     multi_designation_list.append(_element["designation"])
 
                 urn_designation_mapping[_dataelement_urn] = {
                     "designation": multi_designation_list,
-                    "valueDomainUrn": response[0]["valueDomainUrn"]
+                    "valueDomainUrn": response["valueDomainUrn"]
                 }
 
             # lookup -> get elements of csv-file that are already present in mdr
@@ -145,9 +160,6 @@ class UpdateMDR(ApiConnector):
         for _i, _row in self.main_system_mdr.iterrows():
             _designation = _row["designation"]
             _definition = _row["definition"]
-
-            if _designation == "Person.Demographie.AdministrativesGeschlecht":
-                print("We are here")
 
             logging.info("Dataelement: {}\n\n".format(_designation))
 
@@ -179,13 +191,19 @@ class UpdateMDR(ApiConnector):
             # append slot_temp to slots-list
             de_basetemp["slots"] = de_basetemp["slots"] + [create_slot_tmp]
 
-            print(de_basetemp)
-
             if _designation in mdr_de_designations.keys():
                 # update data element on API (PUT)
                 _urn = mdr_de_designations[_designation]
                 _valuedomainurn = urn_designation_mapping[_urn]["valueDomainUrn"]
                 de_basetemp["valueDomainUrn"] = _valuedomainurn
+
+                # get all existing slots but the "dqa"-slot
+                response, ns_dataelement_url = self.get_element_by_urn(
+                    urn=_urn
+                )
+                de_slot_items = [s for s in response["slots"] if s["name"] != "dqa"]
+
+                de_basetemp["slots"] = de_basetemp["slots"] + de_slot_items
 
                 element_url = up.urljoin(
                     self.base_url,
