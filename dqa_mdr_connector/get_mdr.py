@@ -107,7 +107,7 @@ class GetMDR(ApiConnector):
             # is in self.de_fhir_path) also add the fhir-path as key
             if not self.de_fhir_paths is None and len(fhir_path) == 1:
                 dict_to_pandas["key"] = fhir_path[0]["value"]
-                dict_to_pandas["variable_name"] = fhir_path[0]["value"]
+                dict_to_pandas["variable_name"] = dict_to_pandas["key"]
 
             # dataelement valuedomain url
             ns_dataelement_valuedom_url = posixpath.join(
