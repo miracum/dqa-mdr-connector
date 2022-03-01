@@ -32,6 +32,8 @@ def slot_split(json_slot: dict, designation: str, definition: str):
             system_name_row["constraints"] = system_name_data["constraints"]
             system_name_row["plausibility_relation"] = system_name_data["plausibility_relation"]
             system_name_row["data_map"] = system_name_data["data_map"]
+            system_name_row["restricting_date_var"] = system_name_data["restricting_date_var"]
+            system_name_row["restricting_date_format"] = system_name_data["restricting_date_format"]
 
             # filter, source_variable_name, source_table_name
 
