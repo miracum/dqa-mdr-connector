@@ -4,13 +4,9 @@ __author__ = "Lorenz A. Kapsner, Moritz Stengel"
 __copyright__ = "Universitätsklinikum Erlangen"
 
 import os
-import urllib.parse as up
 import pandas as pd
 import posixpath
-from requests.api import head
-from requests.models import HTTPBasicAuth
 import json
-from datetime import datetime
 #from tabulate import tabulate
 import logging
 
@@ -56,8 +52,7 @@ class GetMDR(ApiConnector):
             self.database.to_csv(
                 path_or_buf=os.path.join(
                     self.output_folder,
-                    self.output_filename + "-" +
-                    datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv"
+                    self.output_filename
                 ),
                 sep="\t",
                 index=False
