@@ -39,7 +39,7 @@ class UpdateMDR(ApiConnector):
             self.namespace_definition = kwargs.pop("namespace_definition")
 
         # initialize apiconnector
-        super().__init__(**kwargs)
+        super().__init__(download=False, **kwargs)
 
         self.de_fhir_paths = de_fhir_paths
 
