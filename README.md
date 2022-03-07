@@ -1,6 +1,10 @@
 # DQA MDR-Connector
 
-This repo provides python scripts to upload the DQA tool metadata repository (MDR) to the remote MDR and vice versa.
+This repository provides python scripts to connect the MIRACUM metadata reposiory (MDR) with the [MIRACUM DQA-tool](https://gitlab.miracum.org/miracum/dqa/miracumdqa). 
+
+It includes to basic functions:
+  - to download the MDR from the dataelement-hub
+  - to add DQA-specific information to dataelements that should be analyzed using the DQA-tool and to upload this information to the dataelement-hub
 
 
 ## Installation
@@ -11,11 +15,35 @@ cd dqa-mdr-connector
 pip install -e .
 ```
 
+Or simply:
+
+```bash
+pip install git+https://gitlab.miracum.org/miracum/dqa/dqa-mdr-connector.git
+```
+
 ## Usage
 
 In your scripts, import the connector as follows:
 
-### MDR Upload
+### MDR Download
+
+```python
+import logging
+from dqa_mdr_connector.get_mdr import GetMDR
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    gm = GetMDR(
+        output_folder="./",
+        output_filename="mdr_download.csv",
+        api_url="https://rest.demo.dataelementhub.de/v1/",
+        bypass_auth=True,
+        namespace_designation="test_mdr"
+    )
+    gm()
+```
+
+### MDR Update
 
 ```python
 import os
@@ -32,29 +60,14 @@ if __name__ == "__main__":
         separator=";",
         api_url="https://rest.demo.dataelementhub.de/v1/",
         api_auth_url="https://auth.dev.osse-register.de/auth/realms/dehub-demo/protocol/openid-connect/token",
-        namespace_designation="test_erlangen_dqa_mdr",
+        namespace_designation="test_mdr",
         namespace_definition="This is an awesome testing namespace."
     )
     um()
 ```
 
-### MDR Download
-
-```python
-import logging
-from dqa_mdr_connector.get_mdr import GetMDR
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    gm = GetMDR(
-        api_url="https://rest.demo.dataelementhub.de/v1/",
-        api_auth_url="https://auth.dev.osse-register.de/auth/realms/dehub-demo/protocol/openid-connect/token",
-        namespace_designation="test_erlangen_dqa_mdr"
-    )
-    gm()
-```
-
 ## More Infos
 
+* about the MIRACUM DQA-tool: [https://gitlab.miracum.org/miracum/dqa/miracumdqa](https://gitlab.miracum.org/miracum/dqa/miracumdqa)
 * about MIRACUM: [https://www.miracum.org/](https://www.miracum.org/)
 * about the Medical Informatics Initiative: [https://www.medizininformatik-initiative.de/index.php/de](https://www.medizininformatik-initiative.de/index.php/de)
