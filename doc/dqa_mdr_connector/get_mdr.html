@@ -28,49 +28,81 @@
 </summary>
 <pre><code class="python">#!/usr/bin/python
 
+# dqa-mdr-connector: Connecting the MIRACUM-MDR with the DQA-Tool
+# Copyright (C) 2022 Universitätsklinikum Erlangen
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+
 __author__ = &#34;Lorenz A. Kapsner, Moritz Stengel&#34;
 __copyright__ = &#34;Universitätsklinikum Erlangen&#34;
 
 import os
-import urllib.parse as up
 import pandas as pd
 import posixpath
-from requests.api import head
-from requests.models import HTTPBasicAuth
 import json
-from datetime import datetime
 #from tabulate import tabulate
 import logging
 
 from dqa_mdr_connector.api_connection import ApiConnector
+from dqa_mdr_connector.slot_split import slot_split
+
 # api doc: https://rest.demo.dataelementhub.de/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config
 # dicovery doc: https://www.keycloak.org/docs/4.8/authorization_services/#_service_authorization_api
 
 
 class GetMDR(ApiConnector):
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        output_folder=&#34;./&#34;,
+        output_filename=&#34;dehub_mdr_clean.csv&#34;,
+        de_fhir_paths: list = None,
+        return_csv: bool = True,
+        **kwargs
+        ):
 
         super().__init__(**kwargs)
 
+        self.de_fhir_paths = de_fhir_paths
+        self.return_csv = return_csv
+
+        self.output_folder=os.path.abspath(output_folder)
+        self.output_filename=os.path.abspath(output_filename)
+
         # initialize pandas
         self.database = pd.DataFrame(
-            columns=[&#34;designation&#34;, &#34;definition&#34;,
-                     &#34;variable_type&#34;, &#34;constraints&#34;]
+            columns=[&#39;designation&#39;, &#39;definition&#39;, &#39;variable_name&#39;, &#39;key&#39;, &#39;dqa_assessment&#39;,
+                     &#39;variable_type&#39;, &#39;source_variable_name&#39;, &#39;source_table_name&#39;,
+                     &#39;source_system_name&#39;, &#39;source_system_type&#39;, &#39;constraints&#39;, &#39;filter&#39;,
+                     &#39;data_map&#39;, &#39;plausibility_relation&#39;, &#39;restricting_date_var&#39;,
+                     &#39;restricting_date_format&#39;]
         )
 
     def __call__(self):
         self.query_info_from_api()
-
-        # finally: save pandas
-        self.database.to_csv(
-            path_or_buf=os.path.join(
-                os.curdir,
-                self.namespace_designation + &#34;-&#34; +
-                datetime.now().strftime(&#34;%Y%m%d_%H%M%S&#34;) + &#34;.csv&#34;
-            ),
-            index=False
-        )
+        
+        if self.return_csv:
+            self.database.to_csv(
+                path_or_buf=os.path.join(
+                    self.output_folder,
+                    self.output_filename
+                ),
+                sep=&#34;\t&#34;,
+                index=False
+            )
+        else:
+            return self.database
 
     def query_info_from_api(self):
         ######################
@@ -95,74 +127,126 @@ class GetMDR(ApiConnector):
             # get data element metadata
             response, ns_dataelement_url = self.get_element_by_urn(
                 urn=_dataelement_urn)
+            
+            if not self.de_fhir_paths is None:
+                fhir_path = [s for s in response[&#34;slots&#34;] if s[&#34;name&#34;] == &#34;fhir-path&#34;]
+                if len(fhir_path) == 1:
+                    if not fhir_path[0][&#34;value&#34;] in self.de_fhir_paths:
+                        # continue loop, if this dataelement is not wanted
+                        continue
+                else:
+                    continue
 
             dict_to_pandas = {
                 &#34;designation&#34;: response[&#34;definitions&#34;][0][&#34;designation&#34;],
                 &#34;definition&#34;: response[&#34;definitions&#34;][0][&#34;definition&#34;]
             }
 
+            # if fhir path not none and code arrived here (i.e. the de 
+            # is in self.de_fhir_path) also add the fhir-path as key
+            if not self.de_fhir_paths is None and len(fhir_path) == 1:
+                dict_to_pandas[&#34;key&#34;] = fhir_path[0][&#34;value&#34;]
+                dict_to_pandas[&#34;variable_name&#34;] = dict_to_pandas[&#34;key&#34;]
+
             # dataelement valuedomain url
             ns_dataelement_valuedom_url = posixpath.join(
                 ns_dataelement_url, &#34;valuedomain&#34;)
 
             # get data element metadata
-            response = self.query_api(
+            response_valuedom = self.query_api(
                 url=ns_dataelement_valuedom_url,
                 header=self.header
             )
 
-            if response[&#34;type&#34;] == &#34;STRING&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;string&#34;
+            if response_valuedom[&#34;type&#34;] == &#34;STRING&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;regex&#34;: response[&#34;text&#34;][&#34;regEx&#34;]
-                     #  &#34;useRegex&#34;: response[&#34;text&#34;][&#34;useRegEx&#34;],
-                     #  &#34;useMaximumLength&#34;: response[&#34;text&#34;][&#34;useMaximumLength&#34;],
-                     #  &#34;maximumLength&#34;: response[&#34;text&#34;][&#34;maximumLength&#34;]
-                     }
-                )
+                # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+                #     {&#34;regex&#34;: response[&#34;text&#34;][&#34;regEx&#34;]
+                #      #  &#34;useRegex&#34;: response[&#34;text&#34;][&#34;useRegEx&#34;],
+                #      #  &#34;useMaximumLength&#34;: response[&#34;text&#34;][&#34;useMaximumLength&#34;],
+                #      #  &#34;maximumLength&#34;: response[&#34;text&#34;][&#34;maximumLength&#34;]
+                #      }
+                # )
 
-            elif response[&#34;type&#34;] == &#34;NUMERIC&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = response[&#34;numeric&#34;][&#34;type&#34;].lower()
+            elif response_valuedom[&#34;type&#34;] == &#34;NUMERIC&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;numeric&#34;][&#34;type&#34;].lower()
 
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;range&#34;: {&#34;min&#34;: response[&#34;numeric&#34;][&#34;minimum&#34;],
-                               &#34;max&#34;: response[&#34;numeric&#34;][&#34;maximum&#34;],
-                               &#34;unit&#34;: response[&#34;numeric&#34;][&#34;unitOfMeasure&#34;],
-                               }
-                     }
-                )
+                # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+                #     {&#34;range&#34;: {&#34;min&#34;: response[&#34;numeric&#34;][&#34;minimum&#34;],
+                #                &#34;max&#34;: response[&#34;numeric&#34;][&#34;maximum&#34;],
+                #                &#34;unit&#34;: response[&#34;numeric&#34;][&#34;unitOfMeasure&#34;],
+                #                }
+                #      }
+                # )
 
-            elif response[&#34;type&#34;] == &#34;DATE&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;date&#34;
-
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;date&#34;: {&#34;date&#34;: response[&#34;datetime&#34;][&#34;date&#34;],
-                              &#34;time&#34;: response[&#34;datetime&#34;][&#34;time&#34;],
-                              &#34;hourFormat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
-                )
-
-            elif response[&#34;type&#34;] == &#34;DATETIME&#34;:
+            elif &#34;DATE&#34; in response_valuedom[&#34;type&#34;]:
                 dict_to_pandas[&#34;variable_type&#34;] = &#34;datetime&#34;
 
                 # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
                 #     {&#34;date&#34;: {&#34;date&#34;: response[&#34;datetime&#34;][&#34;date&#34;],
                 #               &#34;time&#34;: response[&#34;datetime&#34;][&#34;time&#34;],
-                #               &#34;hourformat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
+                #               &#34;hourFormat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
                 # )
 
-            elif response[&#34;type&#34;] == &#34;BOOLEAN&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;boolean&#34;
+            elif response_valuedom[&#34;type&#34;] == &#34;BOOLEAN&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-            elif response[&#34;type&#34;] == &#34;ENUMERATED&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;enumerated&#34;
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;value_set&#34;: response[&#34;permittedValues&#34;]})
+            elif response_valuedom[&#34;type&#34;] == &#34;ENUMERATED&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-            self.database = self.database.append(
-                other=dict_to_pandas,
-                ignore_index=True
-            )</code></pre>
+                # permitted_val_response = response[&#34;permittedValues&#34;]
+
+                # # default empty list
+                # value_list = []
+
+                # # fill value list
+                # for val in permitted_val_response:
+                #     value_list = value_list + [val[&#34;value&#34;]]
+
+                # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+                #     {&#34;value_set&#34;: &#34;, &#34;.join(value_list)})
+
+            mdr_temp = pd.DataFrame(
+                data=dict_to_pandas,
+                dtype=str,
+                index=[0]
+            )
+
+            if len(response[&#34;slots&#34;]) &gt; 0:
+                # until now, dict_to_pandas is one row,
+                # however, when expanding slot, we can get several rows (for different
+                # system types and system names) for one data element.
+                # Hence, we need to transfer dict_to_pandas to a data frame and join data frame
+                # from expanded slot
+
+                for _element in response[&#34;slots&#34;]:
+                    if _element[&#34;name&#34;] == &#34;dqa&#34;:
+                        dqa_slot = _element[&#34;value&#34;]
+                        break
+
+                try:
+                    pandas_from_slot = slot_split(
+                        json_slot=json.loads(dqa_slot),
+                        designation=dict_to_pandas[&#34;designation&#34;],
+                        definition=dict_to_pandas[&#34;definition&#34;]
+                    )
+                    mdr_temp = mdr_temp.astype(str).merge(
+                        pandas_from_slot.astype(str),
+                        on=[&#34;designation&#34;, &#34;definition&#34;],
+                        how=&#34;outer&#34;
+                    )
+                except Exception as e:
+                    logging.error(e)
+
+            self.database = pd.concat(
+                [self.database, mdr_temp],
+                ignore_index=True,
+                axis=0,
+                join=&#34;outer&#34;
+            )
+
+            </code></pre>
 </details>
 </section>
 <section>
@@ -176,7 +260,7 @@ class GetMDR(ApiConnector):
 <dl>
 <dt id="dqa_mdr_connector.get_mdr.GetMDR"><code class="flex name class">
 <span>class <span class="ident">GetMDR</span></span>
-<span>(</span><span>**kwargs)</span>
+<span>(</span><span>output_folder='./', output_filename='dehub_mdr_clean.csv', de_fhir_paths: list = None, return_csv: bool = True, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
@@ -186,28 +270,46 @@ class GetMDR(ApiConnector):
 </summary>
 <pre><code class="python">class GetMDR(ApiConnector):
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        output_folder=&#34;./&#34;,
+        output_filename=&#34;dehub_mdr_clean.csv&#34;,
+        de_fhir_paths: list = None,
+        return_csv: bool = True,
+        **kwargs
+        ):
 
         super().__init__(**kwargs)
 
+        self.de_fhir_paths = de_fhir_paths
+        self.return_csv = return_csv
+
+        self.output_folder=os.path.abspath(output_folder)
+        self.output_filename=os.path.abspath(output_filename)
+
         # initialize pandas
         self.database = pd.DataFrame(
-            columns=[&#34;designation&#34;, &#34;definition&#34;,
-                     &#34;variable_type&#34;, &#34;constraints&#34;]
+            columns=[&#39;designation&#39;, &#39;definition&#39;, &#39;variable_name&#39;, &#39;key&#39;, &#39;dqa_assessment&#39;,
+                     &#39;variable_type&#39;, &#39;source_variable_name&#39;, &#39;source_table_name&#39;,
+                     &#39;source_system_name&#39;, &#39;source_system_type&#39;, &#39;constraints&#39;, &#39;filter&#39;,
+                     &#39;data_map&#39;, &#39;plausibility_relation&#39;, &#39;restricting_date_var&#39;,
+                     &#39;restricting_date_format&#39;]
         )
 
     def __call__(self):
         self.query_info_from_api()
-
-        # finally: save pandas
-        self.database.to_csv(
-            path_or_buf=os.path.join(
-                os.curdir,
-                self.namespace_designation + &#34;-&#34; +
-                datetime.now().strftime(&#34;%Y%m%d_%H%M%S&#34;) + &#34;.csv&#34;
-            ),
-            index=False
-        )
+        
+        if self.return_csv:
+            self.database.to_csv(
+                path_or_buf=os.path.join(
+                    self.output_folder,
+                    self.output_filename
+                ),
+                sep=&#34;\t&#34;,
+                index=False
+            )
+        else:
+            return self.database
 
     def query_info_from_api(self):
         ######################
@@ -232,73 +334,123 @@ class GetMDR(ApiConnector):
             # get data element metadata
             response, ns_dataelement_url = self.get_element_by_urn(
                 urn=_dataelement_urn)
+            
+            if not self.de_fhir_paths is None:
+                fhir_path = [s for s in response[&#34;slots&#34;] if s[&#34;name&#34;] == &#34;fhir-path&#34;]
+                if len(fhir_path) == 1:
+                    if not fhir_path[0][&#34;value&#34;] in self.de_fhir_paths:
+                        # continue loop, if this dataelement is not wanted
+                        continue
+                else:
+                    continue
 
             dict_to_pandas = {
                 &#34;designation&#34;: response[&#34;definitions&#34;][0][&#34;designation&#34;],
                 &#34;definition&#34;: response[&#34;definitions&#34;][0][&#34;definition&#34;]
             }
 
+            # if fhir path not none and code arrived here (i.e. the de 
+            # is in self.de_fhir_path) also add the fhir-path as key
+            if not self.de_fhir_paths is None and len(fhir_path) == 1:
+                dict_to_pandas[&#34;key&#34;] = fhir_path[0][&#34;value&#34;]
+                dict_to_pandas[&#34;variable_name&#34;] = dict_to_pandas[&#34;key&#34;]
+
             # dataelement valuedomain url
             ns_dataelement_valuedom_url = posixpath.join(
                 ns_dataelement_url, &#34;valuedomain&#34;)
 
             # get data element metadata
-            response = self.query_api(
+            response_valuedom = self.query_api(
                 url=ns_dataelement_valuedom_url,
                 header=self.header
             )
 
-            if response[&#34;type&#34;] == &#34;STRING&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;string&#34;
+            if response_valuedom[&#34;type&#34;] == &#34;STRING&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;regex&#34;: response[&#34;text&#34;][&#34;regEx&#34;]
-                     #  &#34;useRegex&#34;: response[&#34;text&#34;][&#34;useRegEx&#34;],
-                     #  &#34;useMaximumLength&#34;: response[&#34;text&#34;][&#34;useMaximumLength&#34;],
-                     #  &#34;maximumLength&#34;: response[&#34;text&#34;][&#34;maximumLength&#34;]
-                     }
-                )
+                # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+                #     {&#34;regex&#34;: response[&#34;text&#34;][&#34;regEx&#34;]
+                #      #  &#34;useRegex&#34;: response[&#34;text&#34;][&#34;useRegEx&#34;],
+                #      #  &#34;useMaximumLength&#34;: response[&#34;text&#34;][&#34;useMaximumLength&#34;],
+                #      #  &#34;maximumLength&#34;: response[&#34;text&#34;][&#34;maximumLength&#34;]
+                #      }
+                # )
 
-            elif response[&#34;type&#34;] == &#34;NUMERIC&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = response[&#34;numeric&#34;][&#34;type&#34;].lower()
+            elif response_valuedom[&#34;type&#34;] == &#34;NUMERIC&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;numeric&#34;][&#34;type&#34;].lower()
 
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;range&#34;: {&#34;min&#34;: response[&#34;numeric&#34;][&#34;minimum&#34;],
-                               &#34;max&#34;: response[&#34;numeric&#34;][&#34;maximum&#34;],
-                               &#34;unit&#34;: response[&#34;numeric&#34;][&#34;unitOfMeasure&#34;],
-                               }
-                     }
-                )
+                # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+                #     {&#34;range&#34;: {&#34;min&#34;: response[&#34;numeric&#34;][&#34;minimum&#34;],
+                #                &#34;max&#34;: response[&#34;numeric&#34;][&#34;maximum&#34;],
+                #                &#34;unit&#34;: response[&#34;numeric&#34;][&#34;unitOfMeasure&#34;],
+                #                }
+                #      }
+                # )
 
-            elif response[&#34;type&#34;] == &#34;DATE&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;date&#34;
-
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;date&#34;: {&#34;date&#34;: response[&#34;datetime&#34;][&#34;date&#34;],
-                              &#34;time&#34;: response[&#34;datetime&#34;][&#34;time&#34;],
-                              &#34;hourFormat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
-                )
-
-            elif response[&#34;type&#34;] == &#34;DATETIME&#34;:
+            elif &#34;DATE&#34; in response_valuedom[&#34;type&#34;]:
                 dict_to_pandas[&#34;variable_type&#34;] = &#34;datetime&#34;
 
                 # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
                 #     {&#34;date&#34;: {&#34;date&#34;: response[&#34;datetime&#34;][&#34;date&#34;],
                 #               &#34;time&#34;: response[&#34;datetime&#34;][&#34;time&#34;],
-                #               &#34;hourformat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
+                #               &#34;hourFormat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
                 # )
 
-            elif response[&#34;type&#34;] == &#34;BOOLEAN&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;boolean&#34;
+            elif response_valuedom[&#34;type&#34;] == &#34;BOOLEAN&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-            elif response[&#34;type&#34;] == &#34;ENUMERATED&#34;:
-                dict_to_pandas[&#34;variable_type&#34;] = &#34;enumerated&#34;
-                dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                    {&#34;value_set&#34;: response[&#34;permittedValues&#34;]})
+            elif response_valuedom[&#34;type&#34;] == &#34;ENUMERATED&#34;:
+                dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-            self.database = self.database.append(
-                other=dict_to_pandas,
-                ignore_index=True
+                # permitted_val_response = response[&#34;permittedValues&#34;]
+
+                # # default empty list
+                # value_list = []
+
+                # # fill value list
+                # for val in permitted_val_response:
+                #     value_list = value_list + [val[&#34;value&#34;]]
+
+                # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+                #     {&#34;value_set&#34;: &#34;, &#34;.join(value_list)})
+
+            mdr_temp = pd.DataFrame(
+                data=dict_to_pandas,
+                dtype=str,
+                index=[0]
+            )
+
+            if len(response[&#34;slots&#34;]) &gt; 0:
+                # until now, dict_to_pandas is one row,
+                # however, when expanding slot, we can get several rows (for different
+                # system types and system names) for one data element.
+                # Hence, we need to transfer dict_to_pandas to a data frame and join data frame
+                # from expanded slot
+
+                for _element in response[&#34;slots&#34;]:
+                    if _element[&#34;name&#34;] == &#34;dqa&#34;:
+                        dqa_slot = _element[&#34;value&#34;]
+                        break
+
+                try:
+                    pandas_from_slot = slot_split(
+                        json_slot=json.loads(dqa_slot),
+                        designation=dict_to_pandas[&#34;designation&#34;],
+                        definition=dict_to_pandas[&#34;definition&#34;]
+                    )
+                    mdr_temp = mdr_temp.astype(str).merge(
+                        pandas_from_slot.astype(str),
+                        on=[&#34;designation&#34;, &#34;definition&#34;],
+                        how=&#34;outer&#34;
+                    )
+                except Exception as e:
+                    logging.error(e)
+
+            self.database = pd.concat(
+                [self.database, mdr_temp],
+                ignore_index=True,
+                axis=0,
+                join=&#34;outer&#34;
             )</code></pre>
 </details>
 <h3>Ancestors</h3>
@@ -339,73 +491,123 @@ class GetMDR(ApiConnector):
         # get data element metadata
         response, ns_dataelement_url = self.get_element_by_urn(
             urn=_dataelement_urn)
+        
+        if not self.de_fhir_paths is None:
+            fhir_path = [s for s in response[&#34;slots&#34;] if s[&#34;name&#34;] == &#34;fhir-path&#34;]
+            if len(fhir_path) == 1:
+                if not fhir_path[0][&#34;value&#34;] in self.de_fhir_paths:
+                    # continue loop, if this dataelement is not wanted
+                    continue
+            else:
+                continue
 
         dict_to_pandas = {
             &#34;designation&#34;: response[&#34;definitions&#34;][0][&#34;designation&#34;],
             &#34;definition&#34;: response[&#34;definitions&#34;][0][&#34;definition&#34;]
         }
 
+        # if fhir path not none and code arrived here (i.e. the de 
+        # is in self.de_fhir_path) also add the fhir-path as key
+        if not self.de_fhir_paths is None and len(fhir_path) == 1:
+            dict_to_pandas[&#34;key&#34;] = fhir_path[0][&#34;value&#34;]
+            dict_to_pandas[&#34;variable_name&#34;] = dict_to_pandas[&#34;key&#34;]
+
         # dataelement valuedomain url
         ns_dataelement_valuedom_url = posixpath.join(
             ns_dataelement_url, &#34;valuedomain&#34;)
 
         # get data element metadata
-        response = self.query_api(
+        response_valuedom = self.query_api(
             url=ns_dataelement_valuedom_url,
             header=self.header
         )
 
-        if response[&#34;type&#34;] == &#34;STRING&#34;:
-            dict_to_pandas[&#34;variable_type&#34;] = &#34;string&#34;
+        if response_valuedom[&#34;type&#34;] == &#34;STRING&#34;:
+            dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-            dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                {&#34;regex&#34;: response[&#34;text&#34;][&#34;regEx&#34;]
-                 #  &#34;useRegex&#34;: response[&#34;text&#34;][&#34;useRegEx&#34;],
-                 #  &#34;useMaximumLength&#34;: response[&#34;text&#34;][&#34;useMaximumLength&#34;],
-                 #  &#34;maximumLength&#34;: response[&#34;text&#34;][&#34;maximumLength&#34;]
-                 }
-            )
+            # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+            #     {&#34;regex&#34;: response[&#34;text&#34;][&#34;regEx&#34;]
+            #      #  &#34;useRegex&#34;: response[&#34;text&#34;][&#34;useRegEx&#34;],
+            #      #  &#34;useMaximumLength&#34;: response[&#34;text&#34;][&#34;useMaximumLength&#34;],
+            #      #  &#34;maximumLength&#34;: response[&#34;text&#34;][&#34;maximumLength&#34;]
+            #      }
+            # )
 
-        elif response[&#34;type&#34;] == &#34;NUMERIC&#34;:
-            dict_to_pandas[&#34;variable_type&#34;] = response[&#34;numeric&#34;][&#34;type&#34;].lower()
+        elif response_valuedom[&#34;type&#34;] == &#34;NUMERIC&#34;:
+            dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;numeric&#34;][&#34;type&#34;].lower()
 
-            dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                {&#34;range&#34;: {&#34;min&#34;: response[&#34;numeric&#34;][&#34;minimum&#34;],
-                           &#34;max&#34;: response[&#34;numeric&#34;][&#34;maximum&#34;],
-                           &#34;unit&#34;: response[&#34;numeric&#34;][&#34;unitOfMeasure&#34;],
-                           }
-                 }
-            )
+            # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+            #     {&#34;range&#34;: {&#34;min&#34;: response[&#34;numeric&#34;][&#34;minimum&#34;],
+            #                &#34;max&#34;: response[&#34;numeric&#34;][&#34;maximum&#34;],
+            #                &#34;unit&#34;: response[&#34;numeric&#34;][&#34;unitOfMeasure&#34;],
+            #                }
+            #      }
+            # )
 
-        elif response[&#34;type&#34;] == &#34;DATE&#34;:
-            dict_to_pandas[&#34;variable_type&#34;] = &#34;date&#34;
-
-            dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                {&#34;date&#34;: {&#34;date&#34;: response[&#34;datetime&#34;][&#34;date&#34;],
-                          &#34;time&#34;: response[&#34;datetime&#34;][&#34;time&#34;],
-                          &#34;hourFormat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
-            )
-
-        elif response[&#34;type&#34;] == &#34;DATETIME&#34;:
+        elif &#34;DATE&#34; in response_valuedom[&#34;type&#34;]:
             dict_to_pandas[&#34;variable_type&#34;] = &#34;datetime&#34;
 
             # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
             #     {&#34;date&#34;: {&#34;date&#34;: response[&#34;datetime&#34;][&#34;date&#34;],
             #               &#34;time&#34;: response[&#34;datetime&#34;][&#34;time&#34;],
-            #               &#34;hourformat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
+            #               &#34;hourFormat&#34;: response[&#34;datetime&#34;][&#34;hourFormat&#34;]}}
             # )
 
-        elif response[&#34;type&#34;] == &#34;BOOLEAN&#34;:
-            dict_to_pandas[&#34;variable_type&#34;] = &#34;boolean&#34;
+        elif response_valuedom[&#34;type&#34;] == &#34;BOOLEAN&#34;:
+            dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-        elif response[&#34;type&#34;] == &#34;ENUMERATED&#34;:
-            dict_to_pandas[&#34;variable_type&#34;] = &#34;enumerated&#34;
-            dict_to_pandas[&#34;constraints&#34;] = json.dumps(
-                {&#34;value_set&#34;: response[&#34;permittedValues&#34;]})
+        elif response_valuedom[&#34;type&#34;] == &#34;ENUMERATED&#34;:
+            dict_to_pandas[&#34;variable_type&#34;] = response_valuedom[&#34;type&#34;].lower()
 
-        self.database = self.database.append(
-            other=dict_to_pandas,
-            ignore_index=True
+            # permitted_val_response = response[&#34;permittedValues&#34;]
+
+            # # default empty list
+            # value_list = []
+
+            # # fill value list
+            # for val in permitted_val_response:
+            #     value_list = value_list + [val[&#34;value&#34;]]
+
+            # dict_to_pandas[&#34;constraints&#34;] = json.dumps(
+            #     {&#34;value_set&#34;: &#34;, &#34;.join(value_list)})
+
+        mdr_temp = pd.DataFrame(
+            data=dict_to_pandas,
+            dtype=str,
+            index=[0]
+        )
+
+        if len(response[&#34;slots&#34;]) &gt; 0:
+            # until now, dict_to_pandas is one row,
+            # however, when expanding slot, we can get several rows (for different
+            # system types and system names) for one data element.
+            # Hence, we need to transfer dict_to_pandas to a data frame and join data frame
+            # from expanded slot
+
+            for _element in response[&#34;slots&#34;]:
+                if _element[&#34;name&#34;] == &#34;dqa&#34;:
+                    dqa_slot = _element[&#34;value&#34;]
+                    break
+
+            try:
+                pandas_from_slot = slot_split(
+                    json_slot=json.loads(dqa_slot),
+                    designation=dict_to_pandas[&#34;designation&#34;],
+                    definition=dict_to_pandas[&#34;definition&#34;]
+                )
+                mdr_temp = mdr_temp.astype(str).merge(
+                    pandas_from_slot.astype(str),
+                    on=[&#34;designation&#34;, &#34;definition&#34;],
+                    how=&#34;outer&#34;
+                )
+            except Exception as e:
+                logging.error(e)
+
+        self.database = pd.concat(
+            [self.database, mdr_temp],
+            ignore_index=True,
+            axis=0,
+            join=&#34;outer&#34;
         )</code></pre>
 </details>
 </dd>
