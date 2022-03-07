@@ -1,6 +1,6 @@
 # dqa-mdr-connector NEWS
 
-## Unreleased (2022-03-07)
+## v0.0.2 (2022-03-07)
 
 #### New Features
 
@@ -14,8 +14,13 @@
 * updated upload logic to consider only wanted dataelements
 * prepared arg for client_secret (wip)
 * working on migrating api to dehub-dev (wip)
+#### Docs
+
+* updated readme
+* updated documentation
 #### Others
 
+* added news.md
 * added license statements to files
 * cleaning up python imports
 * moved confusing download-argument into UpdateMDR class
