@@ -10,7 +10,7 @@ It includes to basic functions:
 ## Installation
 
 ```bash
-git clone https://gitlab.miracum.org/miracum/dqa/dqa-mdr-connector.git
+git clone https://github.com/miracum/dqa-mdr-connector.git
 cd dqa-mdr-connector
 pip install -e .
 ```
@@ -18,7 +18,7 @@ pip install -e .
 Or simply:
 
 ```bash
-pip install git+https://gitlab.miracum.org/miracum/dqa/dqa-mdr-connector.git
+pip install git+https://github.com/miracum/dqa-mdr-connector.git
 ```
 
 ## Usage
