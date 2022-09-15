@@ -38,8 +38,7 @@ __slot_system_value = {
     "source_variable_name": "",
     "source_table_name": "",
     "constraints": "",
-    "plausibility_relation": "",
-    "sql_statement": ""
+    "plausibility_relation": ""
 }
 
 
@@ -105,7 +104,9 @@ def slot_create_dqa_value(mdr: pd.DataFrame, mdr_row: pd.Series, sqls: list):
             manipulate_slot_system_value["data_map"] = data_for_system_name.iloc[0]["data_map"]
             manipulate_slot_system_value["restricting_date_var"] = data_for_system_name.iloc[0]["restricting_date_var"]
             manipulate_slot_system_value["restricting_date_format"] = data_for_system_name.iloc[0]["restricting_date_format"]
-            manipulate_slot_system_value["sql_statement"] = sqls[system_name][mdr_row["variable_name"]]
+            if system_name in sqls.keys():
+                if mdr_row["variable_name"] in sqls[system_name].keys():
+                    manipulate_slot_system_value["sql_statement"] = sqls[system_name][mdr_row["variable_name"]]
 
             # append filled template to list of systems for that system type
             manipulate_slot_base_value["available_systems"][system_type][

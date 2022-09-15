@@ -64,7 +64,7 @@ class UpdateMDR(ApiConnector):
         self.init_templates()
 
         # read sqls
-        if self.sql_dir is not None:
+        if sql_dir is not None:
             self.sqls = self._init_sqls(sql_dir)
         else:
             self.sqls = None
