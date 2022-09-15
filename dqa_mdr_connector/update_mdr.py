@@ -19,17 +19,15 @@
 __author__ = "Lorenz A. Kapsner, Moritz Stengel"
 __copyright__ = "Universitätsklinikum Erlangen"
 
-from operator import length_hint
 import os
 import requests
 import urllib.parse as up
 import pandas as pd
 import posixpath
-from requests.api import head, request
-from requests.models import HTTPBasicAuth
 import json
 import logging
 import copy
+from pathlib import Path
 
 from dqa_mdr_connector.api_connection import ApiConnector
 from dqa_mdr_connector.slot_create import slot_create_dqa_value
@@ -43,6 +41,7 @@ class UpdateMDR(ApiConnector):
     def __init__(
             self,
             csv_file: str,
+            sql_dir: str = None,
             separator: str = ",",
             main_system_name: str = "i2b2",
             main_system_type: str = "postgres",
@@ -63,6 +62,12 @@ class UpdateMDR(ApiConnector):
 
         # init templates
         self.init_templates()
+
+        # read sqls
+        if self.sql_dir is not None:
+            self.sqls = self._init_sqls(sql_dir)
+        else:
+            self.sqls = None
 
         # read database
         self.read_csv_mdr(separator=separator)
@@ -201,7 +206,8 @@ class UpdateMDR(ApiConnector):
             create_slot_tmp["name"] = "dqa"
             create_slot_tmp["value"] = slot_create_dqa_value(
                 mdr=self.database,
-                mdr_row=_row
+                mdr_row=_row,
+                sqls=self.sqls
             )
 
             # append slot_temp to slots-list
@@ -406,3 +412,28 @@ class UpdateMDR(ApiConnector):
             "slots": [],
             "conceptAssociations": []
         }
+    
+    @staticmethod
+    def _init_sqls(sql_dir):
+        if not os.path.exists(sql_dir) or not os.path.isdir(sql_dir):
+            raise Exception("Path '{}' does not exists.")
+
+        crawl_dir = Path(sql_dir)
+        sql_files = list(
+            [_file.parts[-1] for _file in crawl_dir.glob("*.JSON")]
+        )
+        sql_files = [_file.replace("SQL_", "") for _file in sql_files]
+        sql_files = [_file.replace(".JSON", "") for _file in sql_files]
+
+        sql_dict = {}
+        for _sysname in sql_files:
+            if "legacy" in _sysname:
+                continue
+            _sql_dir = os.path.join(
+                sql_dir,
+                "SQL_" + _sysname + ".JSON"
+            )
+            with open(_sql_dir, 'r') as j:
+                sql_dict[_sysname] = json.load(j)
+        
+        return sql_dict
