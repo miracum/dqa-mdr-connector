@@ -30,9 +30,12 @@ def slot_split(json_slot: dict, designation: str, definition: str):
     #base_row["variable_name"] = json_slot["variable_name"]
     #base_row["key"] = json_slot["key"]
 
+    sqls = {}
+
     manipulate_mdr = pd.DataFrame()
 
     for system_type in json_slot["available_systems"].keys():
+        
         for system_name in json_slot["available_systems"][system_type].keys():
 
             system_name_row = {"source_system_type": system_type,
@@ -51,6 +54,9 @@ def slot_split(json_slot: dict, designation: str, definition: str):
             system_name_row["restricting_date_var"] = system_name_data["restricting_date_var"]
             system_name_row["restricting_date_format"] = system_name_data["restricting_date_format"]
 
+            if "sql_statement" in system_name_data.keys():
+                sqls[system_name] = system_name_data["sql_statement"]
+
             # filter, source_variable_name, source_table_name
 
             system_name_dict = {**base_row, **system_name_row}
@@ -62,4 +68,4 @@ def slot_split(json_slot: dict, designation: str, definition: str):
                 join="outer"
             )
 
-    return manipulate_mdr
+    return manipulate_mdr, sqls

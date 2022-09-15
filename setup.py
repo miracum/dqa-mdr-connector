@@ -44,7 +44,7 @@ install_reqs = parse_requirements(req_file)
 
 setup(
     name='dqa_mdr_connector',
-    version='0.0.2',
+    version='0.0.3',
     author="Lorenz A. Kapsner, Moritz Stengel",
     author_email="lorenz.kapsner@uk-erlangen.de, moritz.stengel@extern.uk-erlangen.de",
     license="GPLv3",
